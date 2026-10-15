@@ -21,7 +21,8 @@
         "clean": "ts-node scripts/clean.ts",
         "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build",
         "download-translations": "ts-node scripts/download-translations.ts",
-        "bump-version": "ts-node scripts/bump-version.ts"
+        "bump-version": "ts-node scripts/bump-version.ts",
+        "test:e2e": "npm run build && playwright test"
     },
     "repository": {
         "type": "git",
@@ -39,6 +40,7 @@
     },
     "devDependencies": {
         "@eslint/js": "^9.39.5",
+        "@playwright/test": "^1.64.1",
         "@types/adm-zip": "^0.5.8",
         "@types/chrome": "^0.3.5",
         "@types/node": "^22.20.5",

@@ -19,6 +19,8 @@
         "src/**/*",
         "scripts/**/*",
         "test/**/*",
+        "e2e/**/*",
+        "playwright.config.ts",
         "webpack.config.ts",
         "eslint.config.mjs",
         "vitest.config.ts"
