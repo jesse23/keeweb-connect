@@ -16,4 +16,8 @@ export type ContentScriptMessage =
 
 export interface ContentScriptReturn {
     nextCommand?: string;
+    /** set by auto-fill: true when a field was filled */
+    filled?: boolean;
+    /** set by auto-fill when nothing could be filled; a short human-readable reason */
+    error?: string;
 }
