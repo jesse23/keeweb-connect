@@ -1,4 +1,4 @@
-/* eslint-disable import-x/first */
+/* eslint-disable import-x/first, import-x/order */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installFakeChrome, FakeChrome } from './chrome-fake';
 
