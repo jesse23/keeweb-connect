@@ -1,5 +1,5 @@
-import { TransportBase } from './transport-base';
 import { KeeWebConnectRequest, KeeWebConnectResponse } from 'background/protocol/types';
+import { TransportBase } from './transport-base';
 
 class TransportNativeMessaging extends TransportBase {
     private readonly _appName = 'net.antelle.keeweb.keeweb_connect';

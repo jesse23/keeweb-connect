@@ -1,0 +1,11 @@
+dist/
+node_modules/
+coverage/
+package-lock.json
+native-messaging-host/
+packages/
+_locales/
+icons/
+img/
+release-notes.md
+docs/

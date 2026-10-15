@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "Automatické vyplňování hesel z aplikace KeeWeb"
+    "message": "Neoficiální fork: automatické vyplňování přihlášení z vaší KeeWeb webové aplikace, s funkčními zkratkami."
   },
+  "optionsShortcutNotSet": { "message": "nenastaveno" },
   "cmdSubmitAuto": {
     "message": "Automaticky odeslat formulár"
   },

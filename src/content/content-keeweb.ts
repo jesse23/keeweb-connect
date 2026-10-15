@@ -1,6 +1,7 @@
 declare global {
     interface Window {
-        kwExtensionInstalled: boolean;
+        // distinct from the flag of content-page.ts, so that one script never blocks the other
+        kwKeeWebScriptInstalled: boolean;
     }
 }
 
@@ -8,8 +9,8 @@ interface KeeWebConnectTabMessage {
     kwConnect?: string;
 }
 
-if (!window.kwExtensionInstalled) {
-    window.kwExtensionInstalled = true;
+if (!window.kwKeeWebScriptInstalled) {
+    window.kwKeeWebScriptInstalled = true;
 
     chrome.runtime.onConnect.addListener((port) => {
         if (port.sender?.id !== chrome.runtime.id) {
@@ -29,7 +30,11 @@ if (!window.kwExtensionInstalled) {
             const data = e?.data as KeeWebConnectTabMessage;
             if (data?.kwConnect === 'response') {
                 delete data.kwConnect;
-                port.postMessage(e.data);
+                try {
+                    port.postMessage(e.data);
+                } catch {
+                    window.removeEventListener('message', onWindowMessage);
+                }
             }
         };
 
@@ -38,6 +43,9 @@ if (!window.kwExtensionInstalled) {
             window.removeEventListener('message', onWindowMessage);
         });
         port.onMessage.addListener((msg: KeeWebConnectTabMessage) => {
+            if (!msg || typeof msg !== 'object') {
+                return;
+            }
             msg.kwConnect = 'request';
             window.postMessage(msg, window.location.origin);
         });

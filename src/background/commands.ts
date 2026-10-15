@@ -1,7 +1,10 @@
-import { backend } from './backend';
 import { ContentScriptMessage, ContentScriptReturn } from 'common/content-script-interface';
 import { BackendConnectionState } from 'common/backend-connection-state';
+import { backend } from './backend';
 import { activateTab } from './utils';
+import { AUTO_COMMAND, COMMAND_OPTIONS } from './command-registry';
+import { getActiveFrame } from './frames';
+import { log, reportFailure } from './feedback';
 
 interface CommandArgs {
     command: string;
@@ -15,44 +18,71 @@ interface Frame {
     url: string;
 }
 
+const KNOWN_KEEWEB_ORIGINS = ['https://app.keeweb.info', 'https://beta.keeweb.info'];
+
 function startCommandListener(): void {
     chrome.commands.onCommand.addListener(async (command, tab) => {
-        if (!tab) {
-            [tab] = await new Promise<chrome.tabs.Tab[]>((resolve) =>
-                chrome.tabs.query({ active: true }, resolve)
-            );
+        try {
+            if (!tab?.id) {
+                [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            }
+            if (!tab?.id) {
+                reportFailure(undefined, 'No active tab');
+                return;
+            }
+            const frame = await getActiveFrame(tab);
+            await runCommand({ command, tab, frameId: frame.frameId, url: frame.url ?? tab.url });
+        } catch (e) {
+            reportFailure(tab?.id, `Unexpected error: ${errorMessage(e)}`);
         }
-        const frameId = await getActiveFrame(tab);
-        await runCommand({ command, tab, frameId, url: tab.url });
     });
 }
 
+function errorMessage(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+}
+
 async function runCommand(args: CommandArgs): Promise<void> {
-    if (args.command.includes('auto')) {
-        const nextCommand = await getNextAutoFillCommand(args);
-        if (nextCommand) {
-            await runCommand(nextCommand);
+    try {
+        await runCommandUnsafe(args);
+    } catch (e) {
+        reportFailure(args.tab?.id, `Unexpected error: ${errorMessage(e)}`);
+    }
+}
+
+async function runCommandUnsafe(args: CommandArgs): Promise<void> {
+    const options = COMMAND_OPTIONS[args.command];
+    if (!options) {
+        reportFailure(args.tab?.id, `Unknown command: ${args.command}`);
+        return;
+    }
+    const tabId = args.tab?.id;
+
+    if (args.command === AUTO_COMMAND) {
+        const unsupported = unsupportedUrlReason(args.tab.url ?? args.url);
+        if (unsupported) {
+            reportFailure(tabId, unsupported);
+            return;
         }
+        const nextCommand = await getNextAutoFillCommand(args);
+        if (!nextCommand) {
+            reportFailure(tabId, 'Click into a login field first');
+            return;
+        }
+        await runCommandUnsafe(nextCommand);
         return;
     }
 
-    if (!args.url || !isValidUrl(args.url)) {
+    const unsupported = unsupportedUrlReason(args.url);
+    if (unsupported || !args.url) {
+        reportFailure(tabId, unsupported ?? 'Unknown page address');
         return;
     }
-    if (typeof args.frameId !== 'number') {
-        return;
-    }
-
-    const options = {
-        username: args.command.includes('username'),
-        password: args.command.includes('password'),
-        submit: args.command.includes('submit'),
-        otp: args.command.includes('otp'),
-        other: args.command.includes('other')
-    };
+    const frameId = Number.isInteger(args.frameId) && args.frameId! >= 0 ? args.frameId! : 0;
 
     await backend.connect();
     if (backend.state !== BackendConnectionState.Connected) {
+        reportFailure(tabId, 'Not connected to KeeWeb, see the options page');
         void chrome.runtime.openOptionsPage();
         return;
     }
@@ -65,6 +95,7 @@ async function runCommand(args: CommandArgs): Promise<void> {
             const [entry] = await backend.getLogins(args.url);
 
             if (!entry) {
+                reportFailure(tabId, 'No KeeWeb entry matches this site');
                 return;
             }
 
@@ -79,44 +110,58 @@ async function runCommand(args: CommandArgs): Promise<void> {
             text = await backend.getAnyField(args.url, args.tab.title || '');
         }
     } finally {
-        if (args.tab.id) {
-            await activateTab(args.tab.id);
+        if (tabId) {
+            await activateTab(tabId);
         }
     }
 
-    await autoFill(args.url, args.tab, args.frameId, {
+    if (!text) {
+        reportFailure(tabId, 'KeeWeb returned no value');
+        return;
+    }
+
+    const resp = await autoFill(args.url, args.tab, frameId, {
         text,
         password,
         submit: options.submit
     });
+    if (!resp) {
+        reportFailure(tabId, 'Cannot reach the page, check the extension site access');
+    } else if (resp.error) {
+        reportFailure(tabId, resp.error);
+    }
+}
+
+/** Returns why the page cannot be filled, or undefined when it can. */
+function unsupportedUrlReason(url: string | undefined): string | undefined {
+    if (!url || !/^https?:/i.test(url)) {
+        return 'Autofill is not available on this page';
+    }
+    if (isKeeWebUrl(url)) {
+        return 'Switch to the page you want to fill, not KeeWeb';
+    }
+    return undefined;
+}
+
+function isKeeWebUrl(url: string): boolean {
+    let origin: string;
+    try {
+        origin = new URL(url).origin;
+    } catch {
+        return false;
+    }
+    if (KNOWN_KEEWEB_ORIGINS.includes(origin)) {
+        return true;
+    }
+    try {
+        return new URL(backend.keeWebUrl).origin === origin;
+    } catch {
+        return url.startsWith(backend.keeWebUrl);
+    }
 }
 
 function isValidUrl(url: string): boolean {
-    return /^https?:/i.test(url) && !url.startsWith(backend.keeWebUrl);
-}
-
-async function getActiveFrame(tab: chrome.tabs.Tab): Promise<number> {
-    return new Promise((resolve) => {
-        chrome.scripting.executeScript(
-            {
-                target: {
-                    frameIds: [0],
-                    tabId: tab.id || 0
-                },
-                func: () => {
-                    Array.from(document.querySelectorAll('iframe')).indexOf(
-                        document.activeElement as HTMLIFrameElement
-                    );
-                }
-            },
-            (result: chrome.scripting.InjectionResult<void>[]) => {
-                if (chrome.runtime.lastError) {
-                    return resolve(0);
-                }
-                resolve(Number(result[0]) + 1); // indexOf returns -1, then it's root document which is frameId:0
-            }
-        );
-    });
+    return unsupportedUrlReason(url) === undefined;
 }
 
 async function getNextAutoFillCommand(args: CommandArgs): Promise<CommandArgs | undefined> {
@@ -138,9 +183,6 @@ async function getNextAutoFillCommand(args: CommandArgs): Promise<CommandArgs | 
             url: frame.url
         });
         if (resp?.nextCommand) {
-            args.command = resp.nextCommand;
-            args.frameId = frame.id;
-            args.url = frame.url;
             return {
                 command: resp.nextCommand,
                 tab: args.tab,
@@ -152,29 +194,20 @@ async function getNextAutoFillCommand(args: CommandArgs): Promise<CommandArgs | 
 }
 
 async function getAllFrames(tab: chrome.tabs.Tab): Promise<Frame[]> {
-    return new Promise((resolve, reject) => {
-        chrome.webNavigation.getAllFrames({ tabId: tab.id || 0 }, (frames) => {
-            if (chrome.runtime.lastError || !frames) {
-                const err = chrome.runtime.lastError?.message || 'empty frames';
-                const msg = `Cannot get tab frames: ${err}`;
-                return reject(new Error(msg));
-            }
-            resolve(frames.map((f) => ({ id: f.frameId, url: f.url })));
-        });
-    });
+    const frames = await chrome.webNavigation.getAllFrames({ tabId: tab.id || 0 });
+    if (!frames) {
+        throw new Error('Cannot get tab frames: empty frames');
+    }
+    return frames.map((f) => ({ id: f.frameId, url: f.url }));
 }
 
-async function autoFill(
+function autoFill(
     url: string,
     tab: chrome.tabs.Tab,
     frameId: number,
     options: { text?: string; password?: string; submit: boolean }
 ): Promise<ContentScriptReturn | undefined> {
-    return await sendMessageToTab(tab, frameId, {
-        action: 'auto-fill',
-        url,
-        ...options
-    });
+    return sendMessageToTab(tab, frameId, { action: 'auto-fill', url, ...options });
 }
 
 async function sendMessageToTab(
@@ -183,28 +216,27 @@ async function sendMessageToTab(
     message: ContentScriptMessage
 ): Promise<ContentScriptReturn | undefined> {
     await injectPageContentScript(tab);
-    return new Promise((resolve) => {
-        chrome.tabs.sendMessage(tab.id || 0, message, { frameId }, (resp) => {
-            if (chrome.runtime.lastError) {
-                return resolve(undefined);
-            }
-            resolve(resp); // eslint-disable-line @typescript-eslint/no-unsafe-argument
-        });
-    });
+    try {
+        return (await chrome.tabs.sendMessage(tab.id || 0, message, {
+            frameId
+        })) as ContentScriptReturn | undefined;
+    } catch (e) {
+        log(`cannot message frame ${frameId}`, errorMessage(e));
+        return undefined;
+    }
 }
 
-function injectPageContentScript(tab: chrome.tabs.Tab): Promise<number> {
-    return new Promise((resolve) => {
-        chrome.scripting.executeScript(
-            { files: ['js/content-page.js'], target: { allFrames: true, tabId: tab.id || 0 } },
-            (results) => {
-                if (chrome.runtime.lastError) {
-                    return resolve(0);
-                }
-                resolve(results.length);
-            }
-        );
-    });
+async function injectPageContentScript(tab: chrome.tabs.Tab): Promise<number> {
+    try {
+        const results = await chrome.scripting.executeScript({
+            files: ['js/content-page.js'],
+            target: { allFrames: true, tabId: tab.id || 0 }
+        });
+        return results.length;
+    } catch (e) {
+        log('cannot inject the page script', errorMessage(e));
+        return 0;
+    }
 }
 
 export { startCommandListener, runCommand };
