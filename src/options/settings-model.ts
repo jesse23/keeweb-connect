@@ -76,7 +76,9 @@ class SettingsModel extends TypedEmitter<SettingsModelEvents> {
                     const manifestCommands = chrome.runtime.getManifest().commands || {};
 
                     this._chromeCommands = Object.entries(manifestCommands).map(([name, cmd]) => {
-                        let shortcut = cmd.suggested_key?.mac ?? cmd.suggested_key?.default;
+                        const suggestedKey = cmd.suggested_key as
+                            { mac?: string; default?: string } | undefined;
+                        let shortcut = suggestedKey?.mac ?? suggestedKey?.default;
                         if (shortcut) {
                             shortcut = shortcut
                                 .replace(/Ctrl|Command/g, '⌘')

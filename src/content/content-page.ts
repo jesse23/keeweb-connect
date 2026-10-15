@@ -140,7 +140,6 @@ if (!window.kwExtensionInstalled) {
                 form.querySelector('input[type=submit],button[type=submit]')
             );
             if (typeof form.requestSubmit === 'function') {
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-call
                 form.requestSubmit(submitButton);
             } else if (submitButton) {
                 submitButton.click();

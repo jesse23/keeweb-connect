@@ -9,5 +9,4 @@ export interface BackgroundMessageFromPageOpenTab {
 }
 
 export type BackgroundMessageFromPage =
-    | BackgroundMessageFromPageConnectToKeeWeb
-    | BackgroundMessageFromPageOpenTab;
+    BackgroundMessageFromPageConnectToKeeWeb | BackgroundMessageFromPageOpenTab;
