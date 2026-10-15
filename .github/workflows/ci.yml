@@ -1,0 +1,86 @@
+name: CI
+
+on:
+    push:
+        branches: [master]
+    pull_request:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    verify:
+        name: Verify and build
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci
+            - run: npm run format:check
+            - run: npm run lint
+            - run: npm run typecheck
+            - run: npm run test:unit
+            - run: npm run build
+            - run: npm run package
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: dist
+                  path: |
+                      dist/chrome
+                      dist/*.zip
+                  if-no-files-found: error
+                  retention-days: 14
+
+    e2e:
+        name: End-to-end (Playwright, Chromium)
+        needs: verify
+        runs-on: ubuntu-latest
+        timeout-minutes: 25
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci
+            - uses: actions/download-artifact@v4
+              with:
+                  name: dist
+                  path: dist
+            - run: npx playwright install --with-deps chromium
+            # The suite runs against the exact build the verify job produced (dist/chrome).
+            - run: npx playwright test
+            - uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: playwright-results
+                  path: |
+                      e2e/.results
+                      playwright-report
+                  if-no-files-found: ignore
+                  retention-days: 14
+
+    audit:
+        name: Dependency audit (non-blocking)
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+            # Reports high/critical advisories in shipped dependencies as a warning annotation
+            # without failing the build; dependabot keeps the tree current.
+            - name: npm audit (production dependencies)
+              run: |
+                  if ! npm audit --omit=dev --audit-level=high; then
+                    echo "::warning title=npm audit::High or critical advisories found in production dependencies"
+                  fi

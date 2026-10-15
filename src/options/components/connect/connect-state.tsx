@@ -2,7 +2,6 @@ import { FunctionComponent } from 'preact';
 import { res } from 'options/utils';
 import { model } from 'options/settings-model';
 import { BackendConnectionState } from 'common/backend-connection-state';
-import { canUseOnlyAppConnection } from 'common/features';
 
 const ConnectState: FunctionComponent = () => {
     const state = model.backendConnectionState;
@@ -13,14 +12,6 @@ const ConnectState: FunctionComponent = () => {
 
     return (
         <>
-            {canUseOnlyAppConnection ? (
-                <p>
-                    {res('optionsConnectionModeAppOnly')}{' '}
-                    <a href="https://keeweb.info/" target="_blank" rel="noreferrer">
-                        {res('optionsConnectionModeAppDownloadLink')}
-                    </a>
-                </p>
-            ) : null}
             <p>
                 {res('optionsConnectionState')}{' '}
                 {state === BackendConnectionState.Error ? (

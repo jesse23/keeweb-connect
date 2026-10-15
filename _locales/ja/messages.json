@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "KeeWebのパスワード自動補完"
+    "message": "非公式フォーク：ご自身のKeeWeb Webアプリからログイン情報を自動入力。キーボードショートカット対応。"
   },
+  "optionsShortcutNotSet": { "message": "未設定" },
   "cmdSubmitAuto": {
     "message": "フォームに自動で送信"
   },

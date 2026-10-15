@@ -43,8 +43,9 @@ body {
 body {
     background: var(--background-color);
     color: var(--text-color);
-    font-family: -apple-system, 'BlinkMacSystemFont', 'Helvetica Neue', 'Helvetica', 'Roboto',
-        'Arial', sans-serif;
+    font-family:
+        -apple-system, 'BlinkMacSystemFont', 'Helvetica Neue', 'Helvetica', 'Roboto', 'Arial',
+        sans-serif;
     font-size: 16px;
     padding: 0 2em 1em;
     margin: 0;

@@ -1,5 +1,5 @@
 {
-  "description": { "message": "Password autofill for KeeWeb" },
+  "description": { "message": "Unofficial fork: autofill logins from your own KeeWeb web app, with working keyboard shortcuts." },
 
   "cmdSubmitAuto": { "message": "Submit the form automatically" },
   "cmdInsertUsername": { "message": "Insert username" },
@@ -55,6 +55,7 @@
   "optionsShortcuts": { "message": "Keyboard shortcuts" },
   "optionsShortcutsDescription": { "message": "You can change shortcuts in the extension shortcuts settings." },
   "optionsShortcutsDescriptionNoChange": { "message": "You can use these shortcuts to submit forms faster." },
+  "optionsShortcutNotSet": { "message": "not set" },
   "optionsShortcutsLink": { "message": "Edit keyboard shortcuts" },
   "optionsShortcutsManual": { "message": "To edit shortcuts, open add-ons in your browser, then click the settings button, and select the shortcuts item:" },
   "optionsAbout": { "message": "About" },

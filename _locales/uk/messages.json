@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "Автозаповнення паролів для KeeWeb"
+    "message": "Неофіційний форк: автозаповнення логінів із вашого вебзастосунку KeeWeb зі швидкими клавішами."
   },
+  "optionsShortcutNotSet": { "message": "не призначено" },
   "cmdSubmitAuto": {
     "message": "Подати форму автоматично"
   },

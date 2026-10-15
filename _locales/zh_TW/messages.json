@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "KeeWeb 密碼自動填入"
+    "message": "非官方分支：從您自己的 KeeWeb 網頁應用程式自動填入登入資訊，支援鍵盤快速鍵。"
   },
+  "optionsShortcutNotSet": { "message": "未設定" },
   "cmdSubmitAuto": {
     "message": "自動送交表單"
   },
