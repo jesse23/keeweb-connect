@@ -3,20 +3,12 @@
 .DS_Store
 node_modules/
 dist/
+coverage/
 *.log
 *.user
 *.pem
+*.zip
 *.iml
 .cache/
-
-xcuserdata/
-*.xcodeproj/*
-!*.xcodeproj/project.pbxproj
-!*.xcodeproj/xcshareddata/
-!*.xcworkspace/contents.xcworkspacedata
-**/xcshareddata/WorkspaceSettings.xcsettings
-
+.eslintcache
 native-messaging-host/build/
-
-# Artifacts from signing the addon for Firefox
-web-ext-artifacts

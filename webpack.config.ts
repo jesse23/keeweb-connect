@@ -1,35 +1,41 @@
-/* eslint-disable import/no-namespace */
-import * as path from 'path';
 import * as fs from 'fs';
-import merge from 'merge';
-import * as CopyPlugin from 'copy-webpack-plugin';
+import * as path from 'path';
+import CopyPlugin from 'copy-webpack-plugin';
+import type { Configuration } from 'webpack';
+
+type Json = Record<string, unknown>;
+
+function isObject(value: unknown): value is Json {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepMerge(target: Json, patch: Json): Json {
+    for (const [key, value] of Object.entries(patch)) {
+        const current = target[key];
+        target[key] = isObject(current) && isObject(value) ? deepMerge(current, value) : value;
+    }
+    return target;
+}
 
 const dev = process.argv.includes('--mode=development');
 
-const knownBrowsers = new Set(['chrome', 'firefox', 'safari', 'edge']);
-
-const browser = process.env.KW_BROWSER || 'chrome';
-if (!knownBrowsers.has(browser)) {
-    throw new Error(`Unknown browser: ${browser}`);
-}
-
-// eslint-disable-next-line import/no-default-export,no-restricted-syntax
-export default {
+const config: Configuration = {
     entry: {
-        'background': './src/background/init.ts',
+        background: './src/background/init.ts',
         'content-keeweb': './src/content/content-keeweb.ts',
         'content-page': './src/content/content-page.ts',
-        'options': './src/options/index.tsx'
+        options: './src/options/index.tsx'
     },
     output: {
         filename: 'js/[name].js',
-        path: path.resolve('dist', browser)
+        path: path.resolve('dist', 'chrome'),
+        clean: true
     },
     module: {
         rules: [
             {
                 test: /\.tsx?$/,
-                use: 'ts-loader',
+                use: { loader: 'ts-loader', options: { compilerOptions: { noEmit: false } } },
                 exclude: /node_modules/
             }
         ]
@@ -46,37 +52,32 @@ export default {
     optimization: {
         minimize: false
     },
+    devtool: dev ? 'inline-source-map' : false,
     plugins: [
         new CopyPlugin({
             patterns: [
                 { from: '_locales', to: '_locales' },
                 { from: 'icons', to: 'icons' },
                 { from: 'pages', to: 'pages' },
-                { from: `img/${browser}`, to: 'img' },
+                { from: 'img/chrome', to: 'img' },
                 { from: 'styles', to: 'styles' },
                 {
                     from: 'manifest.json',
-                    transform: (content) => {
-                        const manifest = <chrome.runtime.Manifest>JSON.parse(content.toString());
-                        const patchFiles = [`manifest.${browser}.json`];
+                    transform: (content: Buffer) => {
+                        const manifest = JSON.parse(content.toString()) as Json;
                         if (dev) {
-                            patchFiles.push('manifest.dev.json');
+                            const patch = JSON.parse(
+                                fs.readFileSync('manifest.dev.json', 'utf8')
+                            ) as Json;
+                            deepMerge(manifest, patch);
                         }
-                        for (const patchFile of patchFiles) {
-                            if (!fs.existsSync(patchFile)) {
-                                continue;
-                            }
-                            const patchData = <chrome.runtime.Manifest>(
-                                JSON.parse(fs.readFileSync(patchFile, 'utf8'))
-                            );
-                            merge.recursive(manifest, patchData);
-                        }
-                        const str = JSON.stringify(manifest, null, 2);
-                        content = Buffer.from(str, 'utf8');
-                        return content;
+                        return Buffer.from(JSON.stringify(manifest, null, 2), 'utf8');
                     }
                 }
             ]
         })
     ]
 };
+
+// webpack-cli requires a default export for config files
+export default config;
