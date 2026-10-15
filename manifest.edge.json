@@ -1,9 +1,0 @@
-{
-  "commands": {
-    "submit-auto": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+A"
-      }
-    }
-  }
-}
