@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
 
+import { fromBase64, randomBase64, randomBytes, toBase64 } from 'background/utils';
+import { box as tweetnaclBox, BoxKeyPair } from 'tweetnacl';
 import {
     KeeWebConnectRequest,
     KeeWebConnectResponse,
@@ -22,8 +24,6 @@ import {
     KeeWebConnectGetAnyFieldRequestPayload,
     KeeWebConnectGetAnyFieldResponsePayload
 } from './types';
-import { fromBase64, randomBase64, randomBytes, toBase64 } from 'background/utils';
-import { box as tweetnaclBox, BoxKeyPair } from 'tweetnacl';
 import { ProtocolError, ProtocolErrorCode } from './protocol-error';
 
 declare interface ProtocolTransportAdapter {
