@@ -25,7 +25,10 @@
                     {
                         "path": "dist/keeweb-connect-chrome-*.zip"
                     }
-                ]
+                ],
+                "successComment": false,
+                "failComment": false,
+                "releasedLabels": false
             }
         ]
     ]
