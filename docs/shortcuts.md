@@ -22,3 +22,6 @@ Notes:
   browser window is focused.
 - Failures are never silent: the toolbar icon shows a "!" badge with a tooltip reason for a few
   seconds, and the reason is logged in the service worker console with the `[KeeWeb Connect]` prefix.
+- Unverified: Edge may already use Ctrl+Shift+U (Read aloud) and Ctrl+Shift+Y (Collections), and
+  on Linux Ctrl+Shift+U is the IME unicode-entry combo. Where a suggested key conflicts, Chrome
+  leaves it unbound; the options page lists such commands as "not set", so bind another key there.

@@ -1,5 +1,5 @@
 {
-  "description": { "message": "Password autofill for KeeWeb" },
+  "description": { "message": "Unofficial fork: autofill logins from your own KeeWeb web app, with working keyboard shortcuts." },
 
   "cmdSubmitAuto": { "message": "Submit the form automatically" },
   "cmdInsertUsername": { "message": "Insert username" },

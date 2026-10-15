@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "Autocompletar contraseñas de KeeWeb"
+    "message": "Fork no oficial: autocompleta credenciales desde tu propia app web de KeeWeb, con atajos de teclado."
   },
+  "optionsShortcutNotSet": { "message": "sin asignar" },
   "cmdSubmitAuto": {
     "message": "Enviar formulario automáticamente"
   },

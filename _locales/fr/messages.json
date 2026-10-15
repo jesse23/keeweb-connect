@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "Remplissage automatique du mot de passe pour KeeWeb"
+    "message": "Fork non officiel : remplit les identifiants depuis votre application web KeeWeb, avec raccourcis clavier."
   },
+  "optionsShortcutNotSet": { "message": "non défini" },
   "cmdSubmitAuto": {
     "message": "Envoyer le formulaire automatiquement"
   },

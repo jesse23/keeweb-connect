@@ -34,8 +34,10 @@ extension or endorsed by the KeeWeb project, or review can reject it for imperso
 ### Store listing
 
 - **Category:** Productivity. **Language:** English.
-- **Short description (max 132 chars):**
-  `Unofficial fork: autofill logins from your own KeeWeb web app into pages, with working keyboard shortcuts.`
+- **Summary (max 132 chars):** the store takes it from the manifest `description`
+  (`__MSG_description__`, so `_locales/*/messages.json`), it is not a separate field. It already
+  says it is an unofficial fork:
+  `Unofficial fork: autofill logins from your own KeeWeb web app, with working keyboard shortcuts.`
 - **Detailed description:**
 
   ```text
@@ -45,7 +47,7 @@ extension or endorsed by the KeeWeb project, or review can reject it for imperso
   database into the web page you are on, using keyboard shortcuts or the context menu.
 
   - Connects to the KeeWeb web app you already use (https://app.keeweb.info/,
-    https://beta.keeweb.info/ or your own KeeWeb URL), or to the KeeWeb desktop app.
+    https://beta.keeweb.info/ or your own KeeWeb URL, ideally on its own origin).
   - Keyboard shortcuts for auto-fill, username, password, OTP and other fields. Assign
     them at chrome://extensions/shortcuts.
   - Nothing is sent anywhere except between this extension and your own KeeWeb. There are no
@@ -73,13 +75,12 @@ extension or endorsed by the KeeWeb project, or review can reject it for imperso
 | Permission                          | Justification                                                                                                                                                                                                                                  |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `host_permissions: <all_urls>`      | The extension fills login forms on whichever site the user chooses, so it must be able to inject its form-filling script into the page and its frames, and to talk to the user's KeeWeb tab. It does not read or transmit page content elsewhere. |
-| `activeTab`                         | Grants access to the page the user triggers a shortcut or context-menu action on.                                                                                                                                                              |
 | `scripting`                         | Injects the content script that finds the login fields and writes the credential, and the script that talks to the KeeWeb web app tab.                                                                                                         |
 | `tabs`                              | Finds an already open KeeWeb tab, opens one if needed, and reads the active tab's URL to ask KeeWeb for matching entries.                                                                                                                      |
 | `webNavigation`                     | Lists the frames of the active page to find the frame containing the login field (login forms often sit in iframes).                                                                                                                           |
 | `contextMenus`                      | Adds "fill username / password / OTP" entries to the right-click menu on form fields.                                                                                                                                                          |
 | `storage`                           | Stores the user's settings locally (KeeWeb URL, web or desktop mode).                                                                                                                                                                          |
-| `nativeMessaging`                   | Optional desktop mode: talks to the locally installed KeeWeb desktop app through its native messaging host. Not used in web mode.                                                                                                              |
+| `optional_permissions: nativeMessaging` | Not granted at install. Requested only if the user selects the optional desktop mode; the desktop host must also trust this extension's ID (see README). Not used in web mode.                                                            |
 | Remote code                         | **No.** All code ships in the package; CSP is `default-src 'self'`.                                                                                                                                                                            |
 
 ### Data usage disclosures
@@ -148,25 +149,31 @@ Repository **secrets** (Settings, Secrets and variables, Actions):
 | `CHROME_CLIENT_SECRET` | OAuth client secret               |
 | `CHROME_REFRESH_TOKEN` | Refresh token from step 4         |
 
-Set them as repository secrets (not only environment secrets): the `cws-precheck` job has no
-environment and skips the upload cleanly when any of the five is missing.
+Create them as **environment secrets** of the `chrome-web-store` environment, not repository
+secrets, so only the upload job can read them.
 
-**Environment:** create an environment named `chrome-web-store` and add yourself under
-**Required reviewers**. Every upload then waits for your approval.
+**Environment:** create an environment named `chrome-web-store`, add yourself under
+**Required reviewers**, and under **Deployment branches and tags** allow only the tag pattern
+`v*`. Every upload then waits for your approval and cannot run for a branch.
+
+**Variable:** set the repository variable `CWS_UPLOAD_ENABLED` to `true` to enable the upload job
+(it is skipped otherwise, and only ever runs for tag refs).
 
 ### Releasing
 
 1. Add notes under `## [Unreleased]` in `CHANGELOG.md`.
 2. `npm run bump -- patch` (or `minor` / `major`). It updates `package.json`,
    `package-lock.json`, `manifest.json` and the changelog, offline. Review, commit.
-3. `git tag v<version> && git push origin master v<version>`.
-4. The workflow verifies, builds, runs the e2e suite, fails if the tag differs from the
+3. `git tag v<version> && git push origin master v<version>`. Only `vX.Y.Z` tags on a commit
+   reachable from `master` are released.
+4. The tag push verifies, builds, runs the e2e suite, fails if the tag differs from the
    `manifest.json` version, creates a GitHub Release with the zip, then (after approval) uploads
    the zip to the store as a **draft**. Open the dashboard and press **Submit for review**.
 5. To have CI also submit for review: Actions, **Release**, **Run workflow**, choose the tag as
-   the ref and tick `publish`.
+   the ref and tick `publish`. This repeats build and e2e and the upload (after approval), but
+   not the GitHub Release.
 
-Manual dispatch from a branch builds and (if configured) uploads that ref but creates no GitHub
+Manual dispatch from a branch only builds and packages; it never uploads and creates no GitHub
 Release.
 
 ## 5. Can `<all_urls>` be narrowed? Honest evaluation
@@ -206,6 +213,10 @@ Why it is not applied here:
   grant being present before any shortcut is used.
 - **Review.** The store reviewer accepts `<all_urls>` for password-manager style autofill with the
   justification above; broad host permissions can lengthen review but are a known pattern.
+
+`activeTab` and `tabs` are redundant or minimal while `<all_urls>` is required: `activeTab` was
+dropped from the manifest; `tabs` stays because the code checks it in `permissions.contains`.
+If `<all_urls>` is narrowed, revisit `tabs` first.
 
 Recommended follow-up, as its own change: switch to option 1 behind a manual test on Chrome with
 cross-origin iframes (a real user gesture), add an e2e that grants the optional origin through
