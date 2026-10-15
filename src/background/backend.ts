@@ -1,5 +1,6 @@
 import { TypedEmitter } from 'tiny-typed-emitter';
 import { BackendConnectionState } from 'common/backend-connection-state';
+import { noop } from 'common/utils';
 import { TransportBase } from './transport/transport-base';
 import { TransportNativeMessaging } from './transport/transport-native-messaging';
 import { TransportBrowserTab } from './transport/transport-browser-tab';
@@ -9,7 +10,7 @@ import {
     KeeWebConnectResponse
 } from './protocol/types';
 import { ProtocolImpl } from './protocol/protocol-impl';
-import { noop } from 'common/utils';
+import { KeepAlive } from './keepalive';
 
 interface RequestQueueItem {
     request: KeeWebConnectRequest;
@@ -40,6 +41,17 @@ class Backend extends TypedEmitter<BackendEvents> {
     private _requestQueue: RequestQueueItem[] = [];
     private _currentRequest: RequestQueueItem | undefined;
     private _protocol: ProtocolImpl | undefined;
+    private _keepAlive = new KeepAlive();
+    private _initPromise: Promise<void> | undefined;
+    private _resolveReady!: () => void;
+    private _ready = new Promise<void>((resolve) => {
+        this._resolveReady = resolve;
+    });
+
+    /** resolves once the stored configuration is loaded; connect() waits for it */
+    get ready(): Promise<void> {
+        return this._ready;
+    }
 
     get state(): BackendConnectionState {
         return this._state;
@@ -60,37 +72,39 @@ class Backend extends TypedEmitter<BackendEvents> {
     }
 
     init(): Promise<void> {
-        return new Promise((resolve) => {
+        this._initPromise ??= new Promise((resolve) => {
             chrome.storage.onChanged.addListener((changes) => this.storageChanged(changes));
             chrome.storage.local.get(['useNativeApp', 'keeWebUrl'], (storageData) => {
-                this._useNativeApp = <boolean>(storageData.useNativeApp ?? true);
-                this._keeWebUrl = <string>storageData.keeWebUrl;
+                this._useNativeApp = <boolean>(storageData?.useNativeApp ?? true);
+                this._keeWebUrl = <string>storageData?.keeWebUrl;
                 this.resetStateByConfig();
+                this._resolveReady();
                 resolve();
             });
         });
+        return this._initPromise;
     }
 
     private async storageChanged(changes: { [prop: string]: chrome.storage.StorageChange }) {
-        if (changes.useNativeApp) {
-            this._useNativeApp = <boolean>changes.useNativeApp.newValue;
-        } else if (changes.keeWebUrl) {
-            this._keeWebUrl = <string>changes.keeWebUrl.newValue;
-        } else {
+        if (!changes.useNativeApp && !changes.keeWebUrl) {
             return;
         }
-
-        if (this._transport) {
-            this._transport.removeAllListeners();
-            await this._transport.disconnect();
-            this._transport = undefined;
+        if (changes.useNativeApp) {
+            this._useNativeApp = <boolean>(changes.useNativeApp.newValue ?? true);
         }
+        if (changes.keeWebUrl) {
+            this._keeWebUrl = <string>changes.keeWebUrl.newValue;
+        }
+
+        await this.dropTransport();
 
         this.resetStateByConfig();
         this.rejectPendingRequests('Config changed');
     }
 
     async connect(): Promise<void> {
+        await this._ready;
+
         if (this.state === BackendConnectionState.Connected) {
             return Promise.resolve();
         }
@@ -113,8 +127,10 @@ class Backend extends TypedEmitter<BackendEvents> {
 
         this._connectionError = undefined;
         this.setState(BackendConnectionState.Connecting);
+        this.refreshKeepAlive();
 
         try {
+            await this.dropTransport();
             this.initTransport();
 
             if (!this._transport) {
@@ -141,7 +157,25 @@ class Backend extends TypedEmitter<BackendEvents> {
             this.setState(BackendConnectionState.Error);
 
             this.emit('connect-finished', <Error>e);
+        } finally {
+            this.refreshKeepAlive();
         }
+    }
+
+    private async dropTransport() {
+        if (this._transport) {
+            this._transport.removeAllListeners();
+            await this._transport.disconnect().catch(noop);
+            this._transport = undefined;
+        }
+    }
+
+    /** the worker is kept alive only while connecting or while requests are pending */
+    private refreshKeepAlive() {
+        this._keepAlive.active =
+            this._state === BackendConnectionState.Connecting ||
+            !!this._currentRequest ||
+            this._requestQueue.length > 0;
     }
 
     private resetStateByConfig() {
@@ -187,18 +221,37 @@ class Backend extends TypedEmitter<BackendEvents> {
 
     private request(request: KeeWebConnectRequest): Promise<KeeWebConnectResponse> {
         return new Promise((resolve, reject) => {
-            const timeout = self.setTimeout(() => {
-                this._currentRequest = undefined;
-                const errStr = chrome.i18n.getMessage('errorRequestTimeout');
-                reject(new Error(errStr));
-            }, this._requestTimeoutMillis);
+            const item: RequestQueueItem = {
+                request,
+                resolve,
+                reject,
+                timeout: self.setTimeout(() => {
+                    // drop exactly this item, whether it is in flight or still queued
+                    if (this._currentRequest === item) {
+                        this._currentRequest = undefined;
+                    } else {
+                        const ix = this._requestQueue.indexOf(item);
+                        if (ix >= 0) {
+                            this._requestQueue.splice(ix, 1);
+                        }
+                    }
+                    const errStr = chrome.i18n.getMessage('errorRequestTimeout');
+                    reject(new Error(errStr));
+                    this.processRequestQueue();
+                }, this._requestTimeoutMillis)
+            };
 
-            this._requestQueue.push({ request, resolve, reject, timeout });
+            this._requestQueue.push(item);
             this.processRequestQueue();
         });
     }
 
     private processRequestQueue() {
+        this.processNextRequest();
+        this.refreshKeepAlive();
+    }
+
+    private processNextRequest() {
         if (this._currentRequest || !this._requestQueue.length) {
             return;
         }
@@ -257,6 +310,7 @@ class Backend extends TypedEmitter<BackendEvents> {
             req.reject(err);
         }
         this._requestQueue.length = 0;
+        this.refreshKeepAlive();
     }
 
     private focusKeeWebTab() {
