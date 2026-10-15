@@ -2,8 +2,12 @@ import * as https from 'https';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createRequire } from 'module';
 
-const keys: { public: string; secret: string } = require('../../keys/onesky.json');
+const keys = createRequire(__filename)('../../keys/onesky.json') as {
+    public: string;
+    secret: string;
+};
 
 const USE_FILES = false;
 const PROJECT_ID = '382232';
@@ -67,7 +71,7 @@ interface Translations {
 async function loadLanguages(): Promise<Languages> {
     if (USE_FILES && fs.existsSync(CACHE_FILE_LANGUAGES)) {
         console.log('Using cached languages');
-        return JSON.parse(fs.readFileSync(CACHE_FILE_LANGUAGES, 'utf8'));
+        return JSON.parse(fs.readFileSync(CACHE_FILE_LANGUAGES, 'utf8')) as Languages;
     }
 
     console.log('Loading language names...');
@@ -98,7 +102,7 @@ async function loadLanguages(): Promise<Languages> {
                     }
                     resolve(parsed);
                 } catch (e) {
-                    reject(e);
+                    reject(e instanceof Error ? e : new Error(String(e)));
                 }
             });
         });
@@ -108,7 +112,7 @@ async function loadLanguages(): Promise<Languages> {
 async function loadTranslations(): Promise<Translations> {
     if (USE_FILES && fs.existsSync(CACHE_FILE_TRANSLATIONS)) {
         console.log('Using cached translations');
-        return Promise.resolve(JSON.parse(fs.readFileSync(CACHE_FILE_TRANSLATIONS, 'utf8')));
+        return JSON.parse(fs.readFileSync(CACHE_FILE_TRANSLATIONS, 'utf8')) as Translations;
     }
     console.log('Loading translations...');
     const url = new URL(API_URL_TRANSLATIONS.replace(':project_id', PROJECT_ID));
@@ -131,7 +135,7 @@ async function loadTranslations(): Promise<Translations> {
                     }
                     resolve(parsed);
                 } catch (e) {
-                    reject(e);
+                    reject(e instanceof Error ? e : new Error(String(e)));
                 }
             });
         });

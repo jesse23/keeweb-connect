@@ -12,8 +12,7 @@ export interface ContentScriptMessageGetNextAutoFillCommand {
 }
 
 export type ContentScriptMessage =
-    | ContentScriptMessageAutoFill
-    | ContentScriptMessageGetNextAutoFillCommand;
+    ContentScriptMessageAutoFill | ContentScriptMessageGetNextAutoFillCommand;
 
 export interface ContentScriptReturn {
     nextCommand?: string;

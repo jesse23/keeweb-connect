@@ -97,7 +97,11 @@ class Backend extends TypedEmitter<BackendEvents> {
         if (this.state === BackendConnectionState.Connecting) {
             return new Promise((resolve, reject) =>
                 this.once('connect-finished', (e) => {
-                    e ? reject(e) : resolve();
+                    if (e) {
+                        reject(e);
+                    } else {
+                        resolve();
+                    }
                 })
             );
         }
