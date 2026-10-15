@@ -2,7 +2,7 @@ name: Release
 
 on:
     push:
-        tags: ['v*']
+        tags: ['v[0-9]+.[0-9]+.[0-9]+']
     workflow_dispatch:
         inputs:
             publish:
@@ -26,6 +26,11 @@ jobs:
             version: ${{ steps.meta.outputs.version }}
         steps:
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - name: Tag must be on master
+              if: github.ref_type == 'tag'
+              run: git merge-base --is-ancestor "$GITHUB_SHA" origin/master
             - uses: actions/setup-node@v4
               with:
                   node-version-file: .nvmrc
@@ -55,7 +60,8 @@ jobs:
 
     github-release:
         name: GitHub Release
-        if: github.ref_type == 'tag'
+        # only the tag push creates the release; dispatching with a tag as ref must not repeat it
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         needs: build
         runs-on: ubuntu-latest
         timeout-minutes: 10
@@ -75,49 +81,29 @@ jobs:
                   gh release create "$TAG" dist/keeweb-connect-chrome-*.zip \
                     --title "$TAG" --generate-notes --verify-tag
 
-    cws-precheck:
-        name: Check Chrome Web Store secrets
-        needs: build
-        runs-on: ubuntu-latest
-        timeout-minutes: 5
-        outputs:
-            configured: ${{ steps.check.outputs.configured }}
-        steps:
-            - id: check
-              env:
-                  CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-                  CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
-                  CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-                  CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
-                  CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
-              run: |
-                  missing=""
-                  for name in CHROME_EXTENSION_ID CHROME_PUBLISHER_ID CHROME_CLIENT_ID CHROME_CLIENT_SECRET CHROME_REFRESH_TOKEN; do
-                    if [ -z "${!name}" ]; then missing="$missing $name"; fi
-                  done
-                  if [ -n "$missing" ]; then
-                    echo "configured=false" >> "$GITHUB_OUTPUT"
-                    echo "::notice title=Chrome Web Store::Skipping upload, missing repository secrets:$missing"
-                  else
-                    echo "configured=true" >> "$GITHUB_OUTPUT"
-                  fi
-
     publish-chrome-store:
         name: Chrome Web Store
-        needs: [build, cws-precheck]
-        if: needs.cws-precheck.outputs.configured == 'true'
+        needs: build
+        # Only tag refs upload (never a branch build). Set the repository variable
+        # CWS_UPLOAD_ENABLED=true once the environment secrets exist.
+        if: github.ref_type == 'tag' && vars.CWS_UPLOAD_ENABLED == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 15
-        # Required reviewers on this environment gate every upload.
+        # The CHROME_* secrets live in this environment only (not repository secrets), and the
+        # environment is restricted to v* tags, with required reviewers gating every upload.
         environment: chrome-web-store
         steps:
+            - uses: actions/checkout@v4
             - uses: actions/download-artifact@v4
               with:
                   name: extension-zip
                   path: dist
             - uses: actions/setup-node@v4
               with:
-                  node-version: 22
+                  node-version-file: .nvmrc
+                  cache: npm
+            # the uploader is a pinned devDependency, so the lockfile covers its tree
+            - run: npm ci --ignore-scripts
             - name: Upload to the Chrome Web Store
               env:
                   EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
@@ -129,9 +115,9 @@ jobs:
               run: |
                   zip="$(ls dist/keeweb-connect-chrome-*.zip)"
                   # No command = upload only (draft). 'publish' submits the uploaded version for review.
-                  npx --yes chrome-webstore-upload-cli@4.0.2 upload --source "$zip"
+                  npx --no-install chrome-webstore-upload upload --source "$zip"
                   if [ "$PUBLISH" = "true" ]; then
-                    npx --yes chrome-webstore-upload-cli@4.0.2 publish
+                    npx --no-install chrome-webstore-upload publish
                   else
                     echo "::notice title=Chrome Web Store::Draft uploaded, not submitted for review (publish=false)"
                   fi
