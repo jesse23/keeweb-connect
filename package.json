@@ -21,7 +21,8 @@
         "clean": "ts-node scripts/clean.ts",
         "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build",
         "download-translations": "ts-node scripts/download-translations.ts",
-        "bump-version": "ts-node scripts/bump-version.ts",
+        "bump": "ts-node scripts/bump-version.ts",
+        "release:check": "ts-node scripts/release-check.ts",
         "test:e2e": "npm run build && playwright test"
     },
     "repository": {
