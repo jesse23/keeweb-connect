@@ -34,19 +34,38 @@ const defaultTiming: TransportBrowserTabTiming = {
     minAttemptMillis: 500
 };
 
+/** the directory part of a pathname with a trailing slash: /keeweb/index.html -> /keeweb/ */
+function pathDirectory(pathname: string): string {
+    return pathname.slice(0, pathname.lastIndexOf('/') + 1) || '/';
+}
+
 /**
- * Match pattern for all pages of the KeeWeb origin, e.g. https://app.keeweb.info/*
+ * Match pattern for the pages of the configured KeeWeb: origin plus the directory of its path,
+ * e.g. https://app.keeweb.info/* or https://host/keeweb/*.
  * Returns undefined for URLs that cannot be matched.
  */
 function originMatchPattern(url: string): string | undefined {
     try {
-        const { origin, protocol } = new URL(url);
+        const { origin, protocol, pathname } = new URL(url);
         if (protocol !== 'https:' && protocol !== 'http:') {
             return undefined;
         }
-        return `${origin}/*`;
+        return `${origin}${pathDirectory(pathname)}*`;
     } catch {
         return undefined;
+    }
+}
+
+/** true when the tab address is on the configured KeeWeb origin and under its path directory */
+function isKeeWebTabUrl(tabUrl: string | undefined, keeWebUrl: string): boolean {
+    try {
+        const tab = new URL(tabUrl ?? '');
+        const config = new URL(keeWebUrl);
+        return (
+            tab.origin === config.origin && tab.pathname.startsWith(pathDirectory(config.pathname))
+        );
+    } catch {
+        return false;
     }
 }
 
@@ -138,7 +157,13 @@ class TransportBrowserTab extends TransportBase {
         return new Promise((resolve, reject) => {
             chrome.tabs.query({ url: pattern }, (tabs) => {
                 void chrome.runtime.lastError;
-                const candidates = (tabs ?? []).filter((t) => t.id !== undefined);
+                const candidates = (tabs ?? []).filter(
+                    (t) =>
+                        t.id !== undefined &&
+                        // a tab that is still navigating has the target only in pendingUrl
+                        (isKeeWebTabUrl(t.url, this._keeWebUrl) ||
+                            isKeeWebTabUrl(t.pendingUrl, this._keeWebUrl))
+                );
                 const tab = candidates.find((t) => !t.discarded) ?? candidates[0];
                 if (tab) {
                     resolve(tab);
@@ -289,7 +314,14 @@ class TransportBrowserTab extends TransportBase {
                 port = await this.pingTab(tabId, Math.min(windowMillis, remaining));
             } catch (e) {
                 this._lastInjectionError = (<Error>e).message;
-                await this.recoverTab();
+                if (this._closed) {
+                    return undefined;
+                }
+                try {
+                    await this.recoverTab();
+                } catch (recoverError) {
+                    this._lastInjectionError = (<Error>recoverError).message;
+                }
             }
             if (port) {
                 return port;
@@ -372,6 +404,11 @@ class TransportBrowserTab extends TransportBase {
     }
 
     private portMessage(msg: KeeWebConnectResponse) {
+        // the page answers every ping it received: replies to pings that were re-sent during
+        // the handshake can still arrive afterwards, and must not be taken for a response
+        if (this._port && (msg as { data?: unknown } | undefined)?.data === this._port.name) {
+            return;
+        }
         this.emit('message', msg);
     }
 }
@@ -381,5 +418,5 @@ function isBlank(tab: chrome.tabs.Tab | undefined): boolean {
     return url === 'about:blank' || url === '';
 }
 
-export { TransportBrowserTab, originMatchPattern };
+export { TransportBrowserTab, originMatchPattern, isKeeWebTabUrl };
 export type { TransportBrowserTabTiming };
