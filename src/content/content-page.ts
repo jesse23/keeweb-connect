@@ -3,7 +3,7 @@ import { autoFill, getNextAutoFillCommand, sameDocument } from './page-logic';
 
 declare global {
     interface Window {
-        // not shared with content-keeweb.ts, which uses kwExtensionInstalled
+        // not shared with content-keeweb.ts, which uses kwKeeWebScriptInstalled
         kwPageScriptInstalled: boolean;
     }
 }
