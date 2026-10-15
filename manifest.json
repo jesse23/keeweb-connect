@@ -37,11 +37,16 @@
         "submit-auto": {
             "description": "__MSG_cmdSubmitAuto__",
             "suggested_key": {
-                "default": "Ctrl+Shift+U"
+                "default": "Ctrl+Shift+U",
+                "mac": "Command+Shift+U"
             }
         },
         "submit-username-password": {
-            "description": "__MSG_cmdSubmitUsernamePassword__"
+            "description": "__MSG_cmdSubmitUsernamePassword__",
+            "suggested_key": {
+                "default": "Ctrl+Shift+Y",
+                "mac": "Command+Shift+Y"
+            }
         },
         "insert-username-password": {
             "description": "__MSG_cmdInsertUsernamePassword__"
@@ -53,13 +58,21 @@
             "description": "__MSG_cmdInsertUsername__"
         },
         "submit-password": {
-            "description": "__MSG_cmdSubmitPassword__"
+            "description": "__MSG_cmdSubmitPassword__",
+            "suggested_key": {
+                "default": "Ctrl+Shift+K",
+                "mac": "Command+Shift+K"
+            }
         },
         "insert-password": {
             "description": "__MSG_cmdInsertPassword__"
         },
         "insert-otp": {
-            "description": "__MSG_cmdInsertOtp__"
+            "description": "__MSG_cmdInsertOtp__",
+            "suggested_key": {
+                "default": "Ctrl+Shift+L",
+                "mac": "Command+Shift+L"
+            }
         },
         "insert-other": {
             "description": "__MSG_cmdInsertOther__"
