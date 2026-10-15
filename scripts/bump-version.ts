@@ -1,30 +1,48 @@
+/**
+ * Usage: npm run bump -- <patch|minor|major>
+ *
+ * Updates package.json, package-lock.json and manifest.json to the next version and rolls the
+ * "Unreleased" section of CHANGELOG.md into a dated release section. Offline, touches no git state.
+ */
 import * as fs from 'fs';
+import { bumpSemver, isBumpKind, releaseChangelog } from './release-lib';
 
-const releaseNotes = fs.readFileSync('release-notes.md', 'utf8');
-const match = /^#####\s+v(\d+\.\d+\.\d+)\s/m.exec(releaseNotes);
-
-if (!match) {
-    throw new Error('Cannot find version in release notes');
-}
-const version = match[1];
-
-console.log('Version:', version);
-
-replaceInJson('package.json');
-replaceInJson('package-lock.json');
-replaceInJson('manifest.json');
-
-console.log('Done');
-
-function replaceInJson(fileName: string) {
-    replaceInText(fileName, (json) => {
-        const data = JSON.parse(json) as { version: string };
-        data.version = version;
-        return JSON.stringify(data, null, 2);
-    });
+const kind = process.argv[2];
+if (!isBumpKind(kind)) {
+    console.error('Usage: npm run bump -- <patch|minor|major>');
+    process.exit(1);
 }
 
-function replaceInText(fileName: string, replace: (data: string) => string) {
-    const data = fs.readFileSync(fileName, 'utf8');
-    fs.writeFileSync(fileName, replace(data));
+const manifest = readJson('manifest.json');
+const next = bumpSemver(String(manifest.version), kind);
+const date = new Date().toISOString().slice(0, 10);
+
+// Compute everything first so a failure (e.g. a malformed changelog) leaves the tree untouched.
+const changelog = releaseChangelog(fs.readFileSync('CHANGELOG.md', 'utf8'), next, date);
+
+setVersion('package.json', next);
+setVersion('manifest.json', next);
+// package-lock.json carries the version twice: top level and packages[""]
+setVersion('package-lock.json', next, 2);
+fs.writeFileSync('CHANGELOG.md', changelog);
+
+console.log(`Version: ${String(manifest.version)} -> ${next}`);
+console.log('Next: review the diff, commit, then `git tag v' + next + '` and push the tag.');
+
+function readJson(fileName: string): Record<string, unknown> {
+    return JSON.parse(fs.readFileSync(fileName, 'utf8')) as Record<string, unknown>;
+}
+
+/** Textual replace of the first `count` "version" keys, so the file's formatting is untouched. */
+function setVersion(fileName: string, version: string, count = 1): void {
+    let replaced = 0;
+    const text = fs
+        .readFileSync(fileName, 'utf8')
+        .replace(/^( *"version": ")[^"]*(")/gm, (m, a, b) =>
+            replaced++ < count ? `${a}${version}${b}` : m
+        );
+    if (replaced < count) {
+        throw new Error(`${fileName}: expected ${count} "version" keys, found ${replaced}`);
+    }
+    fs.writeFileSync(fileName, text);
 }
