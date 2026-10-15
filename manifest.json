@@ -12,15 +12,8 @@
     "background": {
         "service_worker": "js/background.js"
     },
-    "permissions": [
-        "activeTab",
-        "tabs",
-        "contextMenus",
-        "storage",
-        "nativeMessaging",
-        "webNavigation",
-        "scripting"
-    ],
+    "permissions": ["tabs", "contextMenus", "storage", "webNavigation", "scripting"],
+    "optional_permissions": ["nativeMessaging"],
     "host_permissions": ["<all_urls>"],
     "content_security_policy": {
         "extension_pages": "default-src 'self'"

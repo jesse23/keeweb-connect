@@ -1,13 +1,15 @@
+import { noop } from 'common/utils';
 import { backend } from './backend';
-import { createUIMenus, bindExtensionButtonClick } from './ui';
+import { bindContextMenuClick, bindExtensionButtonClick, createContextMenus } from './ui';
 import { startInternalIpc } from './internal-ipc';
 import { startCommandListener } from './commands';
-import { noop } from 'common/utils';
 
 let startPromise: Promise<void>;
 
 chrome.runtime.onStartup.addListener(startAndReportError);
 chrome.runtime.onInstalled.addListener((e) => {
+    // context menus persist across service worker restarts: (re)create them on install/update only
+    createContextMenus();
     startAndReportError()
         .then(() => {
             if ((e.reason as string) === 'install') {
@@ -32,7 +34,7 @@ function startAndReportError(): Promise<void> {
 
 async function start() {
     startCommandListener();
-    createUIMenus();
+    bindContextMenuClick();
     bindExtensionButtonClick();
     startInternalIpc();
 

@@ -1,8 +1,8 @@
 import { OptionsPageMessage } from 'common/options-page-interface';
-import { backend } from './backend';
 import { BackgroundMessageFromPage } from 'common/background-interface';
-import { activateTab, openTab } from './utils';
 import { noop } from 'common/utils';
+import { backend } from './backend';
+import { activateTab, openTab } from './utils';
 
 const connectedPorts = new Map<string, chrome.runtime.Port>();
 
@@ -10,8 +10,7 @@ function startInternalIpc(): void {
     chrome.runtime.onConnect.addListener((port) => {
         const senderUrl = port.sender?.url || port.sender?.tab?.url || '';
 
-        // on Safari, case in extension ID will be different
-        if (!senderUrl.toLowerCase().startsWith(location.origin)) {
+        if (port.sender?.id !== chrome.runtime.id || !senderUrl.startsWith(`${location.origin}/`)) {
             return;
         }
 

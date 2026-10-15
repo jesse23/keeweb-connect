@@ -1,8 +1,7 @@
-import { supportsUnicodeMenus } from 'common/features';
 import { runCommand } from './commands';
 import { reportFailure } from './feedback';
 
-export function createUIMenus(): void {
+export function bindContextMenuClick(): void {
     chrome.contextMenus.onClicked.addListener(async (e, tab) => {
         if (!e.editable || !tab || !e.menuItemId) {
             return;
@@ -19,14 +18,17 @@ export function createUIMenus(): void {
 
         await runCommand({ command, tab, url, frameId });
     });
+}
 
-    // menus outlive the service worker: drop the old ones before re-creating (duplicate ids fail)
+/** menus outlive the service worker, so they are created once, on install and update */
+export function createContextMenus(): void {
+    // drop old ones first: after an update titles may differ, and duplicate ids fail
     chrome.contextMenus.removeAll(createMenuItems);
 }
 
 function createMenuItems(): void {
-    const submitSuffix = supportsUnicodeMenus ? ' ⏎' : '';
-    const ellipsis = supportsUnicodeMenus ? '…' : '...';
+    const submitSuffix = ' ⏎';
+    const ellipsis = '…';
 
     chrome.contextMenus.create(
         {

@@ -34,7 +34,7 @@ class SettingsModel extends TypedEmitter<SettingsModelEvents> {
     private loadStorageConfig(): Promise<void> {
         return new Promise((resolve) => {
             chrome.storage.local.get(['useNativeApp', 'keeWebUrl'], (result) => {
-                this._useNativeApp = <boolean>(result.useNativeApp ?? true);
+                this._useNativeApp = <boolean>(result.useNativeApp ?? false);
                 this._keeWebUrl = <string>result.keeWebUrl;
                 resolve();
             });
@@ -71,27 +71,6 @@ class SettingsModel extends TypedEmitter<SettingsModelEvents> {
             chrome.commands.getAll((commands) => {
                 if (Array.isArray(commands)) {
                     this._chromeCommands = commands;
-                } else if (chrome.runtime.id.startsWith('net.antelle.keeweb-connect.extension')) {
-                    // Safari returns an empty object {} instead of commands. Why?..
-                    const manifestCommands = chrome.runtime.getManifest().commands || {};
-
-                    this._chromeCommands = Object.entries(manifestCommands).map(([name, cmd]) => {
-                        const suggestedKey = cmd.suggested_key as
-                            { mac?: string; default?: string } | undefined;
-                        let shortcut = suggestedKey?.mac ?? suggestedKey?.default;
-                        if (shortcut) {
-                            shortcut = shortcut
-                                .replace(/Ctrl|Command/g, '⌘')
-                                .replace(/Alt/g, '⌥')
-                                .replace(/Shift/g, '⇧')
-                                .replace(/\+/g, '');
-                        }
-                        return {
-                            name,
-                            shortcut,
-                            description: cmd.description
-                        };
-                    });
                 }
                 resolve();
             });
@@ -112,6 +91,22 @@ class SettingsModel extends TypedEmitter<SettingsModelEvents> {
     }
 
     setUseNativeApp(useNativeApp: boolean) {
+        if (!useNativeApp) {
+            this.storeUseNativeApp(false);
+            return;
+        }
+        // desktop mode needs nativeMessaging, which is optional: ask when the user picks it
+        chrome.permissions.request({ permissions: ['nativeMessaging'] }, (granted) => {
+            void chrome.runtime.lastError;
+            if (granted) {
+                this.storeUseNativeApp(true);
+            } else {
+                this.emit('change');
+            }
+        });
+    }
+
+    private storeUseNativeApp(useNativeApp: boolean) {
         this._useNativeApp = useNativeApp;
         chrome.storage.local.set({ useNativeApp }, () => this.emit('change'));
     }
