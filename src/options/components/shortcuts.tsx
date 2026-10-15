@@ -18,9 +18,9 @@ const Shortcuts: FunctionComponent = () => {
                     : res('optionsShortcutsDescriptionNoChange')}
             </p>
             <ul>
-                {model.shortcuts.map((command) => (
+                {model.allShortcuts.map((command) => (
                     <li key={command.name}>
-                        {command.description}: {command.shortcut}
+                        {command.description}: {command.shortcut || res('optionsShortcutNotSet')}
                     </li>
                 ))}
             </ul>
@@ -32,9 +32,9 @@ const Shortcuts: FunctionComponent = () => {
                     </>
                 ) : (
                     <p>
-                        <a target="_blank" rel="noreferrer" onClick={openShortcuts}>
+                        <button type="button" onClick={openShortcuts}>
                             {res('optionsShortcutsLink')}
-                        </a>
+                        </button>
                     </p>
                 )
             ) : null}

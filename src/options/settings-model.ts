@@ -169,6 +169,11 @@ class SettingsModel extends TypedEmitter<SettingsModelEvents> {
         });
     }
 
+    /** All user-facing commands, including the ones that have no shortcut assigned. */
+    get allShortcuts(): chrome.commands.Command[] {
+        return (this._chromeCommands || []).filter((cmd) => cmd.name && !cmd.name.startsWith('_'));
+    }
+
     get shortcuts(): chrome.commands.Command[] {
         return (this._chromeCommands || []).filter((cmd) => cmd.shortcut);
     }
