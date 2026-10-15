@@ -59,7 +59,7 @@ async function runCommandUnsafe(args: CommandArgs): Promise<void> {
     const tabId = args.tab?.id;
 
     if (args.command === AUTO_COMMAND) {
-        const unsupported = unsupportedUrlReason(args.url ?? args.tab.url);
+        const unsupported = unsupportedUrlReason(args.tab.url ?? args.url);
         if (unsupported) {
             reportFailure(tabId, unsupported);
             return;

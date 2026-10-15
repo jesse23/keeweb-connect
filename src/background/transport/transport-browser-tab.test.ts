@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeBrowser } from '../../testing/fake-chrome';
-import { TransportBrowserTab, originMatchPattern } from './transport-browser-tab';
+import { TransportBrowserTab, isKeeWebTabUrl, originMatchPattern } from './transport-browser-tab';
 
 const APP = 'https://app.keeweb.info/';
 const BETA = 'https://beta.keeweb.info/';
@@ -38,9 +38,29 @@ describe('originMatchPattern', () => {
         expect(originMatchPattern('http://localhost:8085/')).toBe('http://localhost:8085/*');
     });
 
+    it('scopes the pattern to the directory of a self-hosted KeeWeb path', () => {
+        expect(originMatchPattern('https://host.example/keeweb/')).toBe(
+            'https://host.example/keeweb/*'
+        );
+        expect(originMatchPattern('https://host.example/keeweb/index.html?x=1')).toBe(
+            'https://host.example/keeweb/*'
+        );
+    });
+
     it('rejects urls that cannot be matched', () => {
         expect(originMatchPattern('not a url')).toBeUndefined();
         expect(originMatchPattern('file:///tmp/x')).toBeUndefined();
+    });
+});
+
+describe('isKeeWebTabUrl', () => {
+    it('requires the same origin and the configured path directory', () => {
+        const cfg = 'https://host.example/keeweb/';
+        expect(isKeeWebTabUrl('https://host.example/keeweb/?a=1#/open', cfg)).toBe(true);
+        expect(isKeeWebTabUrl('https://host.example/blog/', cfg)).toBe(false);
+        expect(isKeeWebTabUrl('https://evil.example/keeweb/', cfg)).toBe(false);
+        expect(isKeeWebTabUrl(undefined, cfg)).toBe(false);
+        expect(isKeeWebTabUrl('https://beta.keeweb.info/x', BETA)).toBe(true);
     });
 });
 
@@ -133,6 +153,30 @@ describe('TransportBrowserTab.connect', () => {
 
         expect(await result).toBe('connected');
         expect(browser.reloaded).toEqual([]);
+    });
+
+    it('drops a late pong of the handshake instead of emitting it as a message', async () => {
+        const tabId = browser.addTab(APP);
+        const transport = new TransportBrowserTab(APP);
+        expect(await settle(transport.connect())).toBe('connected');
+
+        const onMessage = vi.fn();
+        transport.on('message', onMessage);
+        const [port] = [...browser.tabs.get(tabId)!.doc.ports];
+        browser.emitFromPage(tabId, { action: 'ping', data: port.name });
+        browser.emitFromPage(tabId, { action: 'database-locked' });
+
+        expect(onMessage).toHaveBeenCalledTimes(1);
+        expect(onMessage).toHaveBeenCalledWith({ action: 'database-locked' });
+    });
+
+    it('does not match a tab of the same origin outside the configured path', async () => {
+        browser.addTab('https://host.example/blog/');
+        const transport = new TransportBrowserTab('https://host.example/keeweb/');
+
+        expect(await settle(transport.connect())).toBe('connected');
+        expect(browser.created).toHaveLength(1);
+        expect(browser.tabCount()).toBe(2);
     });
 
     it('survives an app that registers its listener after more than 5 seconds', async () => {

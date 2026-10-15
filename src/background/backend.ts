@@ -32,7 +32,7 @@ class Backend extends TypedEmitter<BackendEvents> {
     private readonly _consoleLogStyleIn = this._consoleLogStyle.replace('{}', '#825fe3');
     private readonly _consoleLogStyleOut = this._consoleLogStyle.replace('{}', '#15be5c');
 
-    private _useNativeApp = true;
+    private _useNativeApp = false;
     private _keeWebUrl = this._defaultKeeWebUrl;
 
     private _state = BackendConnectionState.Initializing;
@@ -75,7 +75,7 @@ class Backend extends TypedEmitter<BackendEvents> {
         this._initPromise ??= new Promise((resolve) => {
             chrome.storage.onChanged.addListener((changes) => this.storageChanged(changes));
             chrome.storage.local.get(['useNativeApp', 'keeWebUrl'], (storageData) => {
-                this._useNativeApp = <boolean>(storageData?.useNativeApp ?? true);
+                this._useNativeApp = <boolean>(storageData?.useNativeApp ?? false);
                 this._keeWebUrl = <string>storageData?.keeWebUrl;
                 this.resetStateByConfig();
                 this._resolveReady();
@@ -90,7 +90,7 @@ class Backend extends TypedEmitter<BackendEvents> {
             return;
         }
         if (changes.useNativeApp) {
-            this._useNativeApp = <boolean>(changes.useNativeApp.newValue ?? true);
+            this._useNativeApp = <boolean>(changes.useNativeApp.newValue ?? false);
         }
         if (changes.keeWebUrl) {
             this._keeWebUrl = <string>changes.keeWebUrl.newValue;
@@ -129,9 +129,11 @@ class Backend extends TypedEmitter<BackendEvents> {
         this.setState(BackendConnectionState.Connecting);
         this.refreshKeepAlive();
 
+        let transport: TransportBase | undefined;
         try {
             await this.dropTransport();
             this.initTransport();
+            transport = this._transport;
 
             if (!this._transport) {
                 throw new Error('Transport not initialized');
@@ -150,6 +152,13 @@ class Backend extends TypedEmitter<BackendEvents> {
 
             this.emit('connect-finished');
         } catch (e) {
+            if (this._transport !== transport) {
+                // the config changed while connecting: storageChanged already reset the state
+                // eslint-disable-next-line no-console
+                console.log('Connect cancelled by a config change');
+                this.emit('connect-finished', <Error>e);
+                return;
+            }
             // eslint-disable-next-line no-console
             console.error('Connect error', e);
 
