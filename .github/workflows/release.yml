@@ -1,99 +1,78 @@
 name: Release
 
+# Versions come from conventional commits on master (semantic-release, as in webtty):
+# fix: -> patch, feat: -> minor, "!" or BREAKING CHANGE -> major. Other types do not release.
+
 on:
     push:
-        tags: ['v[0-9]+.[0-9]+.[0-9]+']
+        branches: [master]
     workflow_dispatch:
-        inputs:
-            publish:
-                description: 'Publish to the Chrome Web Store after upload (default: upload a draft only)'
-                type: boolean
-                default: false
 
 permissions:
     contents: read
 
 concurrency:
-    group: release-${{ github.ref }}
+    group: release
     cancel-in-progress: false
 
 jobs:
-    build:
-        name: Verify, build and package
+    release:
+        name: Verify, tag and release
         runs-on: ubuntu-latest
-        timeout-minutes: 20
+        timeout-minutes: 25
+        permissions:
+            contents: write
         outputs:
-            version: ${{ steps.meta.outputs.version }}
+            version: ${{ steps.release.outputs.version }}
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - name: Tag must be on master
-              if: github.ref_type == 'tag'
-              run: git merge-base --is-ancestor "$GITHUB_SHA" origin/master
             - uses: actions/setup-node@v4
               with:
                   node-version-file: .nvmrc
                   cache: npm
             - run: npm ci
-            - name: Tag must match manifest.json version
-              if: github.ref_type == 'tag'
-              env:
-                  TAG: ${{ github.ref_name }}
-              run: npm run release:check -- "$TAG"
             - run: npm run format:check
             - run: npm run lint
             - run: npm run typecheck
             - run: npm run test:unit
-            - run: npm run build
             - run: npx playwright install --with-deps chromium
-            - run: npx playwright test
-            - run: npm run package
-            - id: meta
-              run: echo "version=$(node -p "require('./manifest.json').version")" >> "$GITHUB_OUTPUT"
-            - uses: actions/upload-artifact@v4
+            - run: npm run test:e2e
+            # semantic-release computes the version, stamps package.json and manifest.json,
+            # builds and zips the extension, commits the bump, tags vX.Y.Z and creates the
+            # GitHub Release with the zip. It writes version=<x.y.z> to $GITHUB_OUTPUT only
+            # when it released something.
+            - name: Release
+              id: release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npx semantic-release
+            - name: Keep the zip for the store job
+              if: steps.release.outputs.version != ''
+              uses: actions/upload-artifact@v4
               with:
                   name: extension-zip
                   path: dist/keeweb-connect-chrome-*.zip
                   if-no-files-found: error
                   retention-days: 30
 
-    github-release:
-        name: GitHub Release
-        # only the tag push creates the release; dispatching with a tag as ref must not repeat it
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        needs: build
-        runs-on: ubuntu-latest
-        timeout-minutes: 10
-        permissions:
-            contents: write
-        steps:
-            - uses: actions/download-artifact@v4
-              with:
-                  name: extension-zip
-                  path: dist
-            - name: Create release
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  GH_REPO: ${{ github.repository }}
-                  TAG: ${{ github.ref_name }}
-              run: |
-                  gh release create "$TAG" dist/keeweb-connect-chrome-*.zip \
-                    --title "$TAG" --generate-notes --verify-tag
-
     publish-chrome-store:
         name: Chrome Web Store
-        needs: build
-        # Only tag refs upload (never a branch build). Set the repository variable
-        # CWS_UPLOAD_ENABLED=true once the environment secrets exist.
-        if: github.ref_type == 'tag' && vars.CWS_UPLOAD_ENABLED == 'true'
+        needs: release
+        # Runs only when this push produced a new version. Set the repository variable
+        # CWS_UPLOAD_ENABLED=true once the environment secrets exist, and CWS_PUBLISH=true to
+        # also submit for review (the default uploads a draft).
+        if: needs.release.outputs.version != '' && vars.CWS_UPLOAD_ENABLED == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 15
-        # The CHROME_* secrets live in this environment only (not repository secrets), and the
-        # environment is restricted to v* tags, with required reviewers gating every upload.
+        # The CHROME_* secrets live in this environment only, restricted to master, with
+        # required reviewers gating every upload.
         environment: chrome-web-store
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: v${{ needs.release.outputs.version }}
             - uses: actions/download-artifact@v4
               with:
                   name: extension-zip
@@ -111,13 +90,12 @@ jobs:
                   CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
                   CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
                   REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
-                  PUBLISH: ${{ inputs.publish }}
+                  PUBLISH: ${{ vars.CWS_PUBLISH }}
               run: |
                   zip="$(ls dist/keeweb-connect-chrome-*.zip)"
-                  # No command = upload only (draft). 'publish' submits the uploaded version for review.
                   npx --no-install chrome-webstore-upload upload --source "$zip"
                   if [ "$PUBLISH" = "true" ]; then
                     npx --no-install chrome-webstore-upload publish
                   else
-                    echo "::notice title=Chrome Web Store::Draft uploaded, not submitted for review (publish=false)"
+                    echo "::notice title=Chrome Web Store::Draft uploaded, not submitted for review (CWS_PUBLISH is not true)"
                   fi
