@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "自动填充 KeeWeb 密码"
+    "message": "非官方分支：从您自己的 KeeWeb 网页应用自动填充登录信息，支持键盘快捷键。"
   },
+  "optionsShortcutNotSet": { "message": "未设置" },
   "cmdSubmitAuto": {
     "message": "填充并提交表单"
   },

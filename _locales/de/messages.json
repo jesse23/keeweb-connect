@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "Automatisches Ausfüllen von Passwörtern für KeeWeb"
+    "message": "Inoffizieller Fork: Logins aus Ihrer eigenen KeeWeb-Web-App ausfüllen, mit funktionierenden Tastenkürzeln."
   },
+  "optionsShortcutNotSet": { "message": "nicht festgelegt" },
   "cmdSubmitAuto": {
     "message": "Automatisches Übermitteln der Form"
   },

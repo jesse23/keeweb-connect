@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "Automatische wachtwoordinvoer voor KeeWeb"
+    "message": "Onofficiële fork: vul inloggegevens in vanuit je eigen KeeWeb-webapp, met werkende sneltoetsen."
   },
+  "optionsShortcutNotSet": { "message": "niet ingesteld" },
   "cmdSubmitAuto": {
     "message": "Formulier automatisch indienen"
   },

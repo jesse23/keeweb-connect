@@ -1,7 +1,8 @@
 {
   "description": {
-    "message": "Automatyczne wypełnianie haseł dla KeeWeb."
+    "message": "Nieoficjalny fork: wypełnia dane logowania z Twojej aplikacji internetowej KeeWeb, ze skrótami klawiszowymi."
   },
+  "optionsShortcutNotSet": { "message": "nie ustawiono" },
   "cmdSubmitAuto": {
     "message": "Prześlij formularz automatycznie"
   },
