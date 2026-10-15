@@ -12,7 +12,9 @@ export default tseslint.config(
             'node_modules/**',
             'coverage/**',
             'native-messaging-host/**',
-            'packages/**'
+            'packages/**',
+            'e2e/.cache/**',
+            'e2e/.results/**'
         ]
     },
     js.configs.recommended,
@@ -58,8 +60,20 @@ export default tseslint.config(
         }
     },
     {
-        files: ['**/*.mjs', 'webpack.config.ts', 'scripts/**/*.ts', 'vitest.config.ts'],
+        files: [
+            '**/*.mjs',
+            'webpack.config.ts',
+            'scripts/**/*.ts',
+            'vitest.config.ts',
+            'playwright.config.ts',
+            'e2e/**/*.ts'
+        ],
         rules: { 'no-console': 'off' }
+    },
+    {
+        // Playwright fixtures: `use` is not a React hook, and fixtures take `{}` destructuring
+        files: ['e2e/**/*.ts'],
+        rules: { 'react-hooks/rules-of-hooks': 'off', 'no-empty-pattern': 'off' }
     },
     prettier
 );

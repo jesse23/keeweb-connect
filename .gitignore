@@ -12,3 +12,6 @@ coverage/
 .cache/
 .eslintcache
 native-messaging-host/build/
+e2e/.results/
+playwright-report/
+test-results/
