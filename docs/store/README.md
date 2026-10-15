@@ -153,28 +153,31 @@ Create them as **environment secrets** of the `chrome-web-store` environment, no
 secrets, so only the upload job can read them.
 
 **Environment:** create an environment named `chrome-web-store`, add yourself under
-**Required reviewers**, and under **Deployment branches and tags** allow only the tag pattern
-`v*`. Every upload then waits for your approval and cannot run for a branch.
+**Required reviewers**, and under **Deployment branches and tags** allow only the `master`
+branch. Every upload then waits for your approval and cannot run for any other branch.
 
 **Variable:** set the repository variable `CWS_UPLOAD_ENABLED` to `true` to enable the upload job
-(it is skipped otherwise, and only ever runs for tag refs).
+(it is skipped otherwise, and only runs after a release was created on `master`).
 
 ### Releasing
 
-1. Add notes under `## [Unreleased]` in `CHANGELOG.md`.
-2. `npm run bump -- patch` (or `minor` / `major`). It updates `package.json`,
-   `package-lock.json`, `manifest.json` and the changelog, offline. Review, commit.
-3. `git tag v<version> && git push origin master v<version>`. Only `vX.Y.Z` tags on a commit
-   reachable from `master` are released.
-4. The tag push verifies, builds, runs the e2e suite, fails if the tag differs from the
-   `manifest.json` version, creates a GitHub Release with the zip, then (after approval) uploads
-   the zip to the store as a **draft**. Open the dashboard and press **Submit for review**.
-5. To have CI also submit for review: Actions, **Release**, **Run workflow**, choose the tag as
-   the ref and tick `publish`. This repeats build and e2e and the upload (after approval), but
-   not the GitHub Release.
+Releases are automatic, as in webtty: semantic-release reads the conventional commits that land
+on `master`.
 
-Manual dispatch from a branch only builds and packages; it never uploads and creates no GitHub
-Release.
+1. Merge a pull request whose squash/merge commit message is conventional: `fix:` makes a patch,
+   `feat:` a minor, `feat!:` or a `BREAKING CHANGE:` footer a major. `chore:`, `docs:`, `ci:`
+   and similar do not release.
+2. The **Release** workflow verifies, runs the e2e suite, then semantic-release stamps
+   `package.json`, `package-lock.json` and `manifest.json`, builds and zips the extension,
+   commits `chore(release): vX.Y.Z [skip ci]`, tags `vX.Y.Z` and creates the GitHub Release with
+   the zip.
+3. If the repository variable `CWS_UPLOAD_ENABLED` is `true`, the store job then waits for your
+   approval and uploads the zip as a **draft** (also submitting for review when `CWS_PUBLISH` is
+   `true`). Otherwise open the dashboard, upload the zip from the GitHub Release and press
+   **Submit for review**.
+
+The store requires every upload to have a higher version than the last one; semantic-release
+only ever increases it.
 
 ## 5. Can `<all_urls>` be narrowed? Honest evaluation
 
@@ -226,6 +229,5 @@ cross-origin iframes (a real user gesture), add an e2e that grants the optional 
 ## 6. Checklist before each submission
 
 - [ ] `npm run verify` and `npm run test:e2e` pass.
-- [ ] `CHANGELOG.md` section for the version written.
-- [ ] Version in `manifest.json` is higher than the one in the store.
+- [ ] The released version (GitHub Release tag) is higher than the one in the store.
 - [ ] Listing text, screenshots and privacy policy still match the behaviour.

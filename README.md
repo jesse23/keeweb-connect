@@ -78,8 +78,7 @@ npm run test:e2e    # build, then the Playwright suite against a mock KeeWeb
 | `npm run clean`                 | Remove `dist/`                                                    |
 | `npm run verify`                | Format, lint, typecheck, unit tests and build (excludes e2e)      |
 | `npm run test:e2e`              | Build, then the Playwright suite (see `e2e/README.md`)            |
-| `npm run bump`                  | Bump the version in package.json, manifest and changelog          |
-| `npm run release:check`         | Fail when a tag differs from the manifest version                 |
+| `npm run set-version -- x.y.z`  | Stamp manifest.json (CI does this; versions come from commits)    |
 | `npm run download-translations` | Fetch translations (maintainers)                                  |
 
 Layout: `src/background` (service worker, protocol, transports), `src/content` (content scripts),
