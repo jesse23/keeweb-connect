@@ -1,5 +1,6 @@
-import { runCommand } from './commands';
 import { supportsUnicodeMenus } from 'common/features';
+import { runCommand } from './commands';
+import { reportFailure } from './feedback';
 
 export function createUIMenus(): void {
     chrome.contextMenus.onClicked.addListener(async (e, tab) => {
@@ -19,6 +20,11 @@ export function createUIMenus(): void {
         await runCommand({ command, tab, url, frameId });
     });
 
+    // menus outlive the service worker: drop the old ones before re-creating (duplicate ids fail)
+    chrome.contextMenus.removeAll(createMenuItems);
+}
+
+function createMenuItems(): void {
     const submitSuffix = supportsUnicodeMenus ? ' ⏎' : '';
     const ellipsis = supportsUnicodeMenus ? '…' : '...';
 
@@ -97,6 +103,10 @@ export function createUIMenus(): void {
 
 export function bindExtensionButtonClick(): void {
     chrome.action.onClicked.addListener(async (tab) => {
-        await runCommand({ command: 'submit-auto', tab });
+        if (!tab?.id) {
+            reportFailure(undefined, 'No active tab');
+            return;
+        }
+        await runCommand({ command: 'submit-auto', tab, url: tab.url });
     });
 }
